@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
-import { NEWS, ALL_CATEGORIES, TRENDING } from "@/lib/news-data";
+import { NEWS, ALL_CATEGORIES } from "@/lib/news-data";
 import { Search as SearchIcon, X, Clock, TrendingUp, Hash } from "lucide-react";
 
 const RECENT_KEY = "locus.recent-searches.v1";
