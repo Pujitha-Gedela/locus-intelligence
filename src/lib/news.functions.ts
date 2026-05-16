@@ -15,17 +15,68 @@ type CacheEntry = { at: number; items: NewsItem[] };
 const CACHE_TTL_MS = 10 * 60 * 1000;
 let cache: CacheEntry | null = null;
 
-const TOPIC_MAP: Array<{ topic: string; category: Category }> = [
-  { topic: "business", category: "Business" },
-  { topic: "technology", category: "Technology" },
+// Per-category intelligent search queries. Primary is the rich OR query;
+// fallback is a broader query used only when the primary returns too few items.
+const CATEGORY_QUERIES: Array<{ category: Category; primary: string; fallback: string }> = [
+  {
+    category: "AI",
+    primary: '"artificial intelligence" OR OpenAI OR Anthropic OR Nvidia OR "generative AI" OR LLM',
+    fallback: "AI model OR chatbot OR machine learning",
+  },
+  {
+    category: "Startups",
+    primary: 'startup OR "venture capital" OR "Series A" OR "Series B" OR "Y Combinator" OR founder OR funding',
+    fallback: "startup raises OR seed round",
+  },
+  {
+    category: "Markets",
+    primary: '"stock market" OR Nasdaq OR Sensex OR "S&P 500" OR Dow OR Nifty OR investing OR equities',
+    fallback: "stocks OR shares OR market rally",
+  },
+  {
+    category: "Technology",
+    primary: 'technology OR chips OR semiconductors OR software OR cloud OR Apple OR Google OR Microsoft',
+    fallback: "tech company OR product launch",
+  },
+  {
+    category: "Business",
+    primary: 'business OR economy OR corporate OR earnings OR CEO OR merger',
+    fallback: "company OR revenue OR profit",
+  },
+  {
+    category: "Economy",
+    primary: 'economy OR inflation OR "Federal Reserve" OR GDP OR "interest rates" OR recession',
+    fallback: "economic growth OR central bank",
+  },
 ];
 
-const SEARCH_QUERIES: Array<{ q: string; category: Category }> = [
-  { q: "artificial intelligence", category: "AI" },
-  { q: "startup funding", category: "Startups" },
-  { q: "stock market", category: "Markets" },
-  { q: "economy inflation", category: "Economy" },
+// Trusted business/tech sources — used to rank, not to hard-filter.
+const TRUSTED_SOURCES = new Set(
+  [
+    "bloomberg", "reuters", "techcrunch", "financial times", "ft",
+    "economic times", "cnbc", "wall street journal", "wsj",
+    "the information", "the verge", "wired", "ars technica",
+    "business insider", "forbes", "fortune", "barron's", "marketwatch",
+    "axios", "the economist", "nikkei", "bbc", "associated press", "ap news",
+    "mint", "moneycontrol", "livemint",
+  ].map((s) => s.toLowerCase()),
+);
+
+// Drop obvious entertainment / clickbait sources.
+const SOURCE_BLOCKLIST = [
+  "tmz", "daily mail", "buzzfeed", "people.com", "eonline", "perez",
 ];
+
+function isBlockedSource(name: string | undefined): boolean {
+  if (!name) return false;
+  const n = name.toLowerCase();
+  return SOURCE_BLOCKLIST.some((b) => n.includes(b));
+}
+
+function sourceRank(name: string | undefined): number {
+  if (!name) return 1;
+  return TRUSTED_SOURCES.has(name.toLowerCase()) ? 0 : 1;
+}
 
 function urlToId(url: string): string {
   // URL-safe base64
@@ -106,27 +157,51 @@ async function loadAllNews(): Promise<NewsItem[]> {
     return [];
   }
 
-  const topicResults = await Promise.all(
-    TOPIC_MAP.map((t) => fetchGnews({ category: t.topic, max: "10" }, apiKey).then((arts) => ({ ...t, arts }))),
+  // Run primary query per category in parallel.
+  const primary = await Promise.all(
+    CATEGORY_QUERIES.map(async (c) => {
+      const arts = await fetchGnews(
+        { q: c.primary, max: "10", in: "title,description", sortby: "publishedAt" },
+        apiKey,
+      );
+      return { category: c.category, fallback: c.fallback, arts };
+    }),
   );
-  const searchResults = await Promise.all(
-    SEARCH_QUERIES.map((s) => fetchGnews({ q: s.q, max: "6", in: "title,description", sortby: "publishedAt" }, apiKey).then((arts) => ({ ...s, arts }))),
+
+  // Run fallback for any category that came back thin (< 4 usable items).
+  const fallback = await Promise.all(
+    primary.map(async (r) => {
+      const usable = r.arts.filter((a) => !isBlockedSource(a.source?.name));
+      if (usable.length >= 4) return { category: r.category, arts: [] as GnewsArticle[] };
+      const arts = await fetchGnews(
+        { q: r.fallback, max: "8", in: "title,description", sortby: "publishedAt" },
+        apiKey,
+      );
+      return { category: r.category, arts };
+    }),
   );
 
   const all: NewsItem[] = [];
   const seen = new Set<string>();
   const pushAll = (arts: GnewsArticle[], category: Category, trendCount: number) => {
-    arts.forEach((a, i) => {
+    // Sort: trusted sources first, then by recency.
+    const ranked = [...arts]
+      .filter((a) => !isBlockedSource(a.source?.name))
+      .sort((a, b) => {
+        const r = sourceRank(a.source?.name) - sourceRank(b.source?.name);
+        if (r !== 0) return r;
+        return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+      });
+    ranked.forEach((a, i) => {
       const mapped = mapArticle(a, category, i < trendCount);
       if (!mapped || seen.has(mapped.id)) return;
       seen.add(mapped.id);
       all.push(mapped);
     });
   };
-  topicResults.forEach((r) => pushAll(r.arts, r.category, 3));
-  searchResults.forEach((r) => pushAll(r.arts, r.category, 2));
+  primary.forEach((r) => pushAll(r.arts, r.category, 2));
+  fallback.forEach((r) => pushAll(r.arts, r.category, 1));
 
-  // Sort by recency hint (publishedAt was overwritten to relative; keep insertion order — topic headlines first)
   return all;
 }
 
