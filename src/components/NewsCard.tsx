@@ -2,12 +2,20 @@ import { Link } from "@tanstack/react-router";
 import { Bookmark, BookmarkCheck } from "lucide-react";
 import type { NewsItem } from "@/lib/news-data";
 import { useSaved } from "@/lib/app-state";
+import { toast } from "sonner";
 
 type Props = { item: NewsItem; index: number };
 
 export function NewsCard({ item, index }: Props) {
   const { isSaved, toggle } = useSaved();
   const saved = isSaved(item.id);
+  function handleToggle() {
+    const wasSaved = saved;
+    toggle(item.id);
+    toast(wasSaved ? "Removed from briefing" : "Saved to briefing", {
+      duration: 1800,
+    });
+  }
   return (
     <article
       className="animate-reveal"
@@ -51,11 +59,12 @@ export function NewsCard({ item, index }: Props) {
       </Link>
 
       {item.whyItMatters && (
-        <div className="mb-4 border-l-2 border-primary bg-[var(--surface)] p-4">
-          <span className="mb-1 block font-mono text-[10px] font-bold uppercase text-primary">
-            Why this matters
+        <div className="mb-4 border-l-2 border-primary bg-[var(--surface)] px-4 py-3.5">
+          <span className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-widest text-primary">
+            <span className="size-1 rounded-full bg-primary" />
+            AI insight · Why this matters
           </span>
-          <p className="text-sm italic text-foreground/80">{item.whyItMatters}</p>
+          <p className="text-[13.5px] leading-relaxed text-foreground/85">{item.whyItMatters}</p>
         </div>
       )}
 
@@ -68,7 +77,7 @@ export function NewsCard({ item, index }: Props) {
           Read Full Article
         </Link>
         <button
-          onClick={() => toggle(item.id)}
+          onClick={handleToggle}
           aria-label={saved ? "Remove bookmark" : "Save article"}
           className="grid size-12 place-items-center border border-border transition-colors hover:bg-secondary"
         >
