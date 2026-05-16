@@ -30,6 +30,7 @@ export type NewsItem = {
   readTime: number;
   thumbnail?: string;
   whyItMatters?: string;
+  keyTakeaway?: string;
   publishedAt: string;
   body: string[];
   trending?: boolean;
@@ -50,6 +51,8 @@ export const NEWS: NewsItem[] = [
     thumbnail: img("photo-1554224155-6726b3ff858f"),
     whyItMatters:
       "Stable rates suggest cautious optimism for Indian corporate earnings, though borrowing costs for expansion remain elevated for the next quarter.",
+    keyTakeaway:
+      "Rate cuts unlikely before Q2 FY26. Plan capex and treasury at current cost of funds.",
     publishedAt: "2h ago",
     trending: true,
     body: [
@@ -70,6 +73,8 @@ export const NEWS: NewsItem[] = [
     thumbnail: img("photo-1677442136019-21780ecad995"),
     whyItMatters:
       "This valuation benchmarks the entire AI sector and pressures competitors like Anthropic and Google to maintain aggressive deployment cycles.",
+    keyTakeaway:
+      "Expect a fresh wave of enterprise AI pricing pressure as funded incumbents race to deploy.",
     publishedAt: "4h ago",
     trending: true,
     body: [
@@ -138,6 +143,8 @@ export const NEWS: NewsItem[] = [
     thumbnail: img("photo-1521737604893-d14cc237f11d"),
     whyItMatters:
       "Any company offering AI-enabled products to EU users — including non-EU firms — must now demonstrate compliance or face severe penalties.",
+    keyTakeaway:
+      "Audit your AI use cases against the prohibited list this quarter — penalties scale with revenue.",
     publishedAt: "10h ago",
     body: [
       "The European Union's landmark AI Act began phased enforcement this week, with the first set of obligations focusing on outright prohibitions of certain AI practices.",
@@ -162,3 +169,18 @@ export const NEWS: NewsItem[] = [
 export const TRENDING = NEWS.filter((n) => n.trending);
 
 export const getNewsById = (id: string) => NEWS.find((n) => n.id === id);
+
+export type MarketTick = {
+  symbol: string;
+  label: string;
+  changePct: number;
+};
+
+export const MARKET_SNAPSHOT: MarketTick[] = [
+  { symbol: "SENSEX", label: "Sensex", changePct: 0.8 },
+  { symbol: "NIFTY", label: "Nifty 50", changePct: 0.6 },
+  { symbol: "NASDAQ", label: "Nasdaq", changePct: 1.1 },
+  { symbol: "DXY", label: "Dollar Idx", changePct: -0.2 },
+  { symbol: "OIL", label: "Brent", changePct: -0.4 },
+  { symbol: "GOLD", label: "Gold", changePct: 0.3 },
+];
