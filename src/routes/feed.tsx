@@ -2,9 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/AppShell";
 import { NewsCard } from "@/components/NewsCard";
-import { ALL_CATEGORIES, NEWS, TRENDING, type Category } from "@/lib/news-data";
+import { ALL_CATEGORIES, MARKET_SNAPSHOT, NEWS, TRENDING, type Category } from "@/lib/news-data";
 import { useInterests } from "@/lib/app-state";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, Sparkles } from "lucide-react";
 
 export const Route = createFileRoute("/feed")({
   component: FeedPage,
@@ -36,11 +36,46 @@ function FeedPage() {
 
   return (
     <AppShell subtitle="Locus Intelligence" title={`${greeting}.`}>
+      {/* Market snapshot */}
+      <section aria-label="Today's market snapshot" className="border-b border-border px-5 pb-4 pt-4">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="font-mono text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+            Today's market snapshot
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+            Live
+          </span>
+        </div>
+        <div className="no-scrollbar -mx-5 flex gap-5 overflow-x-auto px-5">
+          {MARKET_SNAPSHOT.map((m) => {
+            const up = m.changePct >= 0;
+            return (
+              <div key={m.symbol} className="flex flex-none flex-col">
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {m.label}
+                </span>
+                <span
+                  className={`font-mono text-sm font-bold tabular-nums ${
+                    up ? "text-primary" : "text-destructive"
+                  }`}
+                >
+                  {up ? "+" : ""}
+                  {m.changePct.toFixed(1)}%
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
       {/* Interests */}
       <div className="px-5 pb-2 pt-5">
         <div className="mb-3 flex items-end justify-between">
-          <h2 className="font-mono text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
-            Your Interests
+          <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
+            <Sparkles size={10} className="text-primary" />
+            {chips.length > 0
+              ? `Tailored to ${chips.slice(0, 2).join(" + ")}${chips.length > 2 ? " +" + (chips.length - 2) : ""}`
+              : "Your interests"}
           </h2>
           <Link to="/" className="font-mono text-[10px] font-medium uppercase tracking-widest text-primary">
             Edit
@@ -93,6 +128,11 @@ function FeedPage() {
 
       {/* Feed */}
       <main className="mt-8 space-y-10 px-5">
+        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+          <Sparkles size={10} className="text-primary" />
+          <span>Recommended for you</span>
+          <span className="ml-auto">{items.length} stories</span>
+        </div>
         {items.map((item, i) => (
           <NewsCard key={item.id} item={item} index={i} />
         ))}
