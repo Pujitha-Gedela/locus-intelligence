@@ -1,8 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
-import { NEWS } from "@/lib/news-data";
-import { Link } from "@tanstack/react-router";
+import { newsQueryOptions } from "@/lib/news-query";
 import { Sun } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/briefing")({
   component: BriefingPage,
@@ -20,7 +21,8 @@ function BriefingPage() {
     month: "long",
     day: "numeric",
   });
-  const top = NEWS.slice(0, 5);
+  const { data, isLoading } = useQuery(newsQueryOptions());
+  const top = (data?.items ?? []).slice(0, 5);
 
   return (
     <AppShell subtitle="Morning Briefing" title={today}>
@@ -32,35 +34,50 @@ function BriefingPage() {
               Five stories. Two minutes. Everything that moves your work today.
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Generated at 6:00 AM, calibrated to your interests.
+              Curated from leading business and technology sources.
             </p>
           </div>
         </div>
 
-        <ol className="space-y-7">
-          {top.map((n, i) => (
-            <li key={n.id} className="flex gap-4">
-              <span className="font-mono text-2xl font-bold tracking-tighter text-primary">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <div className="min-w-0 flex-1">
-                <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                  {n.source} · {n.category}
-                </span>
-                <Link
-                  to="/article/$id"
-                  params={{ id: n.id }}
-                  className="mt-1 block text-base font-bold leading-snug hover:text-primary"
-                >
-                  {n.headline}
-                </Link>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  {n.summary}
-                </p>
+        {isLoading ? (
+          <div className="space-y-7">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex gap-4">
+                <Skeleton className="h-7 w-7" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3 w-32" />
+                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-3 w-full" />
+                </div>
               </div>
-            </li>
-          ))}
-        </ol>
+            ))}
+          </div>
+        ) : (
+          <ol className="space-y-7">
+            {top.map((n, i) => (
+              <li key={n.id} className="flex gap-4">
+                <span className="font-mono text-2xl font-bold tracking-tighter text-primary">
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                    {n.source} · {n.category}
+                  </span>
+                  <Link
+                    to="/article/$id"
+                    params={{ id: n.id }}
+                    className="mt-1 block text-base font-bold leading-snug hover:text-primary"
+                  >
+                    {n.headline}
+                  </Link>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {n.summary}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
     </AppShell>
   );

@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { NewsCard } from "@/components/NewsCard";
-import { NEWS } from "@/lib/news-data";
+import { newsQueryOptions } from "@/lib/news-query";
 import { useSaved } from "@/lib/app-state";
 import { Bookmark } from "lucide-react";
 
@@ -14,7 +15,8 @@ export const Route = createFileRoute("/saved")({
 
 function SavedPage() {
   const { saved } = useSaved();
-  const items = NEWS.filter((n) => saved.includes(n.id));
+  const { data } = useQuery(newsQueryOptions());
+  const items = (data?.items ?? []).filter((n) => saved.includes(n.id));
   return (
     <AppShell subtitle="Library" title="Saved">
       {items.length === 0 ? (
