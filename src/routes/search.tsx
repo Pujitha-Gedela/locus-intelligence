@@ -1,16 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
-import { NEWS, ALL_CATEGORIES } from "@/lib/news-data";
+import { ALL_CATEGORIES } from "@/lib/news-data";
+import { newsQueryOptions } from "@/lib/news-query";
 import { Search as SearchIcon, X, Clock, TrendingUp, Hash } from "lucide-react";
 
 const RECENT_KEY = "locus.recent-searches.v1";
 const TRENDING_TOPICS = [
-  "Repo rate",
-  "Nvidia earnings",
-  "OpenAI valuation",
-  "EU AI Act",
-  "Sensex record",
+  "Artificial intelligence",
+  "Stock market",
+  "Startup funding",
+  "Inflation",
+  "Earnings",
 ];
 
 export const Route = createFileRoute("/search")({
@@ -23,6 +25,8 @@ export const Route = createFileRoute("/search")({
 function SearchPage() {
   const [q, setQ] = useState("");
   const [recent, setRecent] = useState<string[]>([]);
+  const { data } = useQuery(newsQueryOptions());
+  const news = data?.items ?? [];
 
   useEffect(() => {
     try {
@@ -48,7 +52,7 @@ function SearchPage() {
 
   const query = q.trim().toLowerCase();
   const results = query
-    ? NEWS.filter(
+    ? news.filter(
         (n) =>
           n.headline.toLowerCase().includes(query) ||
           n.summary.toLowerCase().includes(query) ||
