@@ -2,6 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Bookmark, BookmarkCheck, Share2 } from "lucide-react";
 import { getNewsById } from "@/lib/news-data";
 import { useSaved } from "@/lib/app-state";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/article/$id")({
   component: ArticlePage,
@@ -21,6 +23,19 @@ function ArticlePage() {
   const item = getNewsById(id);
   const navigate = useNavigate();
   const { isSaved, toggle } = useSaved();
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    function onScroll() {
+      const h = document.documentElement;
+      const scrolled = h.scrollTop;
+      const max = h.scrollHeight - h.clientHeight;
+      setProgress(max > 0 ? Math.min(100, (scrolled / max) * 100) : 0);
+    }
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [id]);
 
   if (!item) {
     return (
@@ -35,9 +50,18 @@ function ArticlePage() {
 
   const saved = isSaved(item.id);
 
+  function handleToggle() {
+    const wasSaved = saved;
+    toggle(item.id);
+    toast(wasSaved ? "Removed from briefing" : "Saved to briefing", {
+      duration: 1800,
+    });
+  }
+
   return (
     <div className="mx-auto min-h-screen max-w-[480px] bg-background pb-20 text-foreground">
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/90 px-3 py-3 backdrop-blur-md">
+      <header className="sticky top-0 z-20 border-b border-border bg-background/90 backdrop-blur-md">
+        <div className="flex items-center justify-between px-3 py-3">
         <button
           onClick={() => navigate({ to: "/feed" })}
           className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium hover:bg-secondary"
@@ -48,7 +72,7 @@ function ArticlePage() {
         </button>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => toggle(item.id)}
+            onClick={handleToggle}
             aria-label={saved ? "Remove bookmark" : "Save"}
             className="grid size-9 place-items-center rounded-full hover:bg-secondary"
           >
@@ -71,6 +95,14 @@ function ArticlePage() {
           >
             <Share2 size={16} />
           </button>
+        </div>
+        </div>
+        <div className="h-0.5 w-full bg-transparent">
+          <div
+            className="h-full bg-primary transition-[width] duration-150 ease-out"
+            style={{ width: `${progress}%` }}
+            aria-hidden
+          />
         </div>
       </header>
 
@@ -104,10 +136,22 @@ function ArticlePage() {
           <p className="text-[15px] leading-relaxed text-foreground">{item.summary}</p>
         </section>
 
+        {item.keyTakeaway && (
+          <section className="mt-4 flex gap-3 border border-dashed border-primary/40 bg-[var(--surface)] p-4">
+            <span className="mt-0.5 font-mono text-[10px] font-bold uppercase tracking-widest text-primary">
+              Key<br/>takeaway
+            </span>
+            <p className="border-l border-primary/30 pl-3 text-[14px] font-medium leading-relaxed text-foreground">
+              {item.keyTakeaway}
+            </p>
+          </section>
+        )}
+
         {item.whyItMatters && (
           <section className="mt-4 border-l-2 border-primary bg-[var(--surface)] p-5">
-            <span className="mb-2 block font-mono text-[10px] font-bold uppercase tracking-widest text-primary">
-              Why this matters
+            <span className="mb-2 flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-widest text-primary">
+              <span className="size-1 rounded-full bg-primary" />
+              AI insight · Why this matters
             </span>
             <p className="text-[15px] italic leading-relaxed text-foreground/80">
               {item.whyItMatters}
@@ -120,7 +164,7 @@ function ArticlePage() {
           <h2 className="mb-4 font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
             Full article — {item.source}
           </h2>
-          <div className="space-y-5 text-[16px] leading-[1.7] text-foreground">
+          <div className="space-y-6 text-[17px] leading-[1.78] tracking-[-0.003em] text-foreground/90">
             {item.body.map((p, i) => (
               <p key={i} className={i === 0 ? "first-letter:float-left first-letter:mr-2 first-letter:text-5xl first-letter:font-bold first-letter:leading-none" : ""}>
                 {p}
