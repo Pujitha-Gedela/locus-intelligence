@@ -1,10 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { NewsCard } from "@/components/NewsCard";
-import { ALL_CATEGORIES, MARKET_SNAPSHOT, NEWS, TRENDING, type Category } from "@/lib/news-data";
+import { ALL_CATEGORIES, MARKET_SNAPSHOT, type Category } from "@/lib/news-data";
+import { newsQueryOptions } from "@/lib/news-query";
 import { useInterests } from "@/lib/app-state";
 import { TrendingUp, Sparkles } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/feed")({
   component: FeedPage,
@@ -19,13 +22,13 @@ export const Route = createFileRoute("/feed")({
 function FeedPage() {
   const { interests } = useInterests();
   const [active, setActive] = useState<Category | "All">("All");
-  const [chips, setChips] = useState<Category[]>([]);
+  const { data, isLoading, isError, refetch } = useQuery(newsQueryOptions());
 
-  useEffect(() => {
-    setChips(interests.length > 0 ? interests : (["Markets", "AI", "Startups", "Economy"] as Category[]));
-  }, [interests]);
+  const news = data?.items ?? [];
+  const trending = useMemo(() => news.filter((n) => n.trending).slice(0, 6), [news]);
 
-  const items = active === "All" ? NEWS : NEWS.filter((n) => n.category === active);
+  const chips = interests.length > 0 ? interests : (["Markets", "AI", "Startups", "Economy"] as Category[]);
+  const items = active === "All" ? news : news.filter((n) => n.category === active);
 
   const greeting = (() => {
     const h = new Date().getHours();
@@ -102,29 +105,31 @@ function FeedPage() {
       </div>
 
       {/* Trending strip */}
-      <section className="mt-6 border-y border-border bg-[var(--surface)] py-4">
-        <div className="mb-3 flex items-center gap-2 px-5">
-          <TrendingUp size={12} className="text-primary" strokeWidth={2.4} />
-          <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-primary">
-            Trending now
-          </span>
-        </div>
-        <div className="no-scrollbar flex gap-3 overflow-x-auto px-5 pb-1">
-          {TRENDING.map((t) => (
-            <Link
-              key={t.id}
-              to="/article/$id"
-              params={{ id: t.id }}
-              className="flex w-64 flex-none flex-col gap-2 border border-border bg-background p-3 transition-colors hover:border-foreground/30"
-            >
-              <span className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
-                {t.source} · {t.category}
-              </span>
-              <p className="text-sm font-bold leading-snug">{t.headline}</p>
-            </Link>
-          ))}
-        </div>
-      </section>
+      {trending.length > 0 && (
+        <section className="mt-6 border-y border-border bg-[var(--surface)] py-4">
+          <div className="mb-3 flex items-center gap-2 px-5">
+            <TrendingUp size={12} className="text-primary" strokeWidth={2.4} />
+            <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-primary">
+              Trending now
+            </span>
+          </div>
+          <div className="no-scrollbar flex gap-3 overflow-x-auto px-5 pb-1">
+            {trending.map((t) => (
+              <Link
+                key={t.id}
+                to="/article/$id"
+                params={{ id: t.id }}
+                className="flex w-64 flex-none flex-col gap-2 border border-border bg-background p-3 transition-colors hover:border-foreground/30"
+              >
+                <span className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
+                  {t.source} · {t.category}
+                </span>
+                <p className="text-sm font-bold leading-snug">{t.headline}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Feed */}
       <main className="mt-8 space-y-10 px-5">
@@ -133,10 +138,35 @@ function FeedPage() {
           <span>Recommended for you</span>
           <span className="ml-auto">{items.length} stories</span>
         </div>
-        {items.map((item, i) => (
+
+        {isLoading && (
+          <div className="space-y-10">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="space-y-3">
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="h-6 w-full" />
+                <Skeleton className="aspect-video w-full" />
+                <Skeleton className="h-3 w-full" />
+                <Skeleton className="h-3 w-2/3" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {isError && (
+          <div className="py-12 text-center">
+            <p className="text-sm text-muted-foreground">Couldn't load today's stories.</p>
+            <button onClick={() => refetch()} className="mt-4 border border-border px-5 py-3 text-xs font-bold uppercase tracking-widest hover:bg-secondary">
+              Retry
+            </button>
+          </div>
+        )}
+
+        {!isLoading && !isError && items.map((item, i) => (
           <NewsCard key={item.id} item={item} index={i} />
         ))}
-        {items.length === 0 && (
+
+        {!isLoading && !isError && items.length === 0 && (
           <p className="py-12 text-center text-sm text-muted-foreground">
             No stories in this category yet.
           </p>
