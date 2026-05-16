@@ -15,17 +15,68 @@ type CacheEntry = { at: number; items: NewsItem[] };
 const CACHE_TTL_MS = 10 * 60 * 1000;
 let cache: CacheEntry | null = null;
 
-const TOPIC_MAP: Array<{ topic: string; category: Category }> = [
-  { topic: "business", category: "Business" },
-  { topic: "technology", category: "Technology" },
+// Per-category intelligent search queries. Primary is the rich OR query;
+// fallback is a broader query used only when the primary returns too few items.
+const CATEGORY_QUERIES: Array<{ category: Category; primary: string; fallback: string }> = [
+  {
+    category: "AI",
+    primary: '"artificial intelligence" OR OpenAI OR Anthropic OR Nvidia OR "generative AI" OR LLM',
+    fallback: "AI model OR chatbot OR machine learning",
+  },
+  {
+    category: "Startups",
+    primary: 'startup OR "venture capital" OR "Series A" OR "Series B" OR "Y Combinator" OR founder OR funding',
+    fallback: "startup raises OR seed round",
+  },
+  {
+    category: "Markets",
+    primary: '"stock market" OR Nasdaq OR Sensex OR "S&P 500" OR Dow OR Nifty OR investing OR equities',
+    fallback: "stocks OR shares OR market rally",
+  },
+  {
+    category: "Technology",
+    primary: 'technology OR chips OR semiconductors OR software OR cloud OR Apple OR Google OR Microsoft',
+    fallback: "tech company OR product launch",
+  },
+  {
+    category: "Business",
+    primary: 'business OR economy OR corporate OR earnings OR CEO OR merger',
+    fallback: "company OR revenue OR profit",
+  },
+  {
+    category: "Economy",
+    primary: 'economy OR inflation OR "Federal Reserve" OR GDP OR "interest rates" OR recession',
+    fallback: "economic growth OR central bank",
+  },
 ];
 
-const SEARCH_QUERIES: Array<{ q: string; category: Category }> = [
-  { q: "artificial intelligence", category: "AI" },
-  { q: "startup funding", category: "Startups" },
-  { q: "stock market", category: "Markets" },
-  { q: "economy inflation", category: "Economy" },
+// Trusted business/tech sources — used to rank, not to hard-filter.
+const TRUSTED_SOURCES = new Set(
+  [
+    "bloomberg", "reuters", "techcrunch", "financial times", "ft",
+    "economic times", "cnbc", "wall street journal", "wsj",
+    "the information", "the verge", "wired", "ars technica",
+    "business insider", "forbes", "fortune", "barron's", "marketwatch",
+    "axios", "the economist", "nikkei", "bbc", "associated press", "ap news",
+    "mint", "moneycontrol", "livemint",
+  ].map((s) => s.toLowerCase()),
+);
+
+// Drop obvious entertainment / clickbait sources.
+const SOURCE_BLOCKLIST = [
+  "tmz", "daily mail", "buzzfeed", "people.com", "eonline", "perez",
 ];
+
+function isBlockedSource(name: string | undefined): boolean {
+  if (!name) return false;
+  const n = name.toLowerCase();
+  return SOURCE_BLOCKLIST.some((b) => n.includes(b));
+}
+
+function sourceRank(name: string | undefined): number {
+  if (!name) return 1;
+  return TRUSTED_SOURCES.has(name.toLowerCase()) ? 0 : 1;
+}
 
 function urlToId(url: string): string {
   // URL-safe base64
