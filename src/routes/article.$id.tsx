@@ -49,14 +49,14 @@ function ArticlePage() {
   }
 
   const saved = isSaved(item.id);
-
-  function handleToggle() {
+  const itemId = item.id;
+  const handleToggle = () => {
     const wasSaved = saved;
-    toggle(item.id);
+    toggle(itemId);
     toast(wasSaved ? "Removed from briefing" : "Saved to briefing", {
       duration: 1800,
     });
-  }
+  };
 
   return (
     <div className="mx-auto min-h-screen max-w-[480px] bg-background pb-20 text-foreground">
