@@ -1,12 +1,13 @@
 import { queryOptions } from "@tanstack/react-query";
-import { getNewsFn, getArticleInsightFn } from "./news.functions";
+import { getNewsFn, getArticleInsightFn, type NewsScope } from "./news.functions";
 
-export const newsQueryOptions = () =>
+export const newsQueryOptions = (category: NewsScope = "All") =>
   queryOptions({
-    queryKey: ["news"],
-    queryFn: () => getNewsFn(),
+    queryKey: ["news", category],
+    queryFn: () => getNewsFn({ data: { category } }),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
+    placeholderData: (previousData) => previousData,
   });
 
 export const insightQueryOptions = (input: {
