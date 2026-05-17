@@ -23,7 +23,9 @@ export type NewsScope = Category | "All";
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const MIN_RESULTS = 5;
 const MAX_RESULTS = 10;
+const REQUEST_COOLDOWN_MS = 45 * 1000;
 const cache = new Map<NewsScope, CacheEntry>();
+const inflight = new Map<NewsScope, Promise<NewsItem[]>>();
 
 const CATEGORY_CONFIG: Record<Category, QueryConfig> = {
   Markets: {
@@ -293,42 +295,45 @@ function buildOverviewItems(articles: GnewsArticle[]): NewsItem[] {
 
 async function fetchCategoryNews(category: Category, apiKey: string): Promise<NewsItem[]> {
   const config = CATEGORY_CONFIG[category];
-  const collected: GnewsArticle[] = [];
 
   console.info(`[news] category=${category} stage=primary query=${config.primary}`);
-  collected.push(
-    ...await fetchGnews(
-      { q: config.primary, in: "title,description", sortby: "publishedAt", max: String(MAX_RESULTS) },
-      apiKey,
-    ),
+  const primaryArticles = await fetchGnews(
+    { q: config.primary, in: "title,description", sortby: "publishedAt", max: String(MAX_RESULTS) },
+    apiKey,
   );
 
-  let items = buildRankedItems(collected, category, config.keywords, 2, 2);
+  let items = buildRankedItems(primaryArticles, category, config.keywords, 2, 2);
   if (items.length >= MIN_RESULTS) return items;
 
+  const mergedArticles = [...primaryArticles];
   console.info(`[news] category=${category} stage=fallback query=${config.fallback}`);
-  collected.push(
+  mergedArticles.push(
     ...await fetchGnews(
       { q: config.fallback, in: "title,description", sortby: "publishedAt", max: String(MAX_RESULTS) },
       apiKey,
     ),
   );
 
-  items = buildRankedItems(collected, category, config.keywords, 2, 2);
+  items = buildRankedItems(mergedArticles, category, config.keywords, 1, 2);
   if (items.length >= MIN_RESULTS) return items;
 
-  console.info(`[news] category=${category} stage=topoff query=${GENERAL_FALLBACK_QUERY}`);
-  collected.push(
-    ...await fetchGnews(
-      { q: GENERAL_FALLBACK_QUERY, in: "title,description", sortby: "publishedAt", max: String(MAX_RESULTS) },
-      apiKey,
-    ),
-  );
+  const overviewFallback = cache.get("All")?.items ?? [];
+  if (overviewFallback.length > 0) {
+    console.info(`[news] category=${category} stage=cache-fallback source=All`);
+    const categoryFallback = overviewFallback.filter((item) => item.category === category);
+    if (categoryFallback.length >= MIN_RESULTS) {
+      return categoryFallback.slice(0, MAX_RESULTS);
+    }
+    if (overviewFallback.length >= MIN_RESULTS) {
+      return overviewFallback.slice(0, MAX_RESULTS).map((item, index) => ({
+        ...item,
+        category,
+        trending: index < 2,
+      }));
+    }
+  }
 
-  items = buildRankedItems(collected, category, config.keywords, 2, 2);
-  if (items.length >= MIN_RESULTS) return items;
-
-  return buildRankedItems(collected, category, config.keywords, 0, 2);
+  return items;
 }
 
 async function fetchOverviewNews(apiKey: string): Promise<NewsItem[]> {
@@ -374,19 +379,35 @@ export async function fetchNewsForScope(scope: NewsScope = "All"): Promise<NewsI
     return cached.items;
   }
 
+  if (cached && now - cached.at < REQUEST_COOLDOWN_MS && cached.items.length > 0) {
+    return cached.items;
+  }
+
+  const pending = inflight.get(scope);
+  if (pending) {
+    return pending;
+  }
+
   const apiKey = process.env.GNEWS_API_KEY;
   if (!apiKey) {
     console.error("GNEWS_API_KEY is not configured");
-    return cached?.items ?? [];
+    return cached?.items ?? cache.get("All")?.items ?? [];
   }
 
-  const items = scope === "All" ? await fetchOverviewNews(apiKey) : await fetchCategoryNews(scope, apiKey);
-  if (items.length > 0) {
-    cache.set(scope, { at: now, items });
-    return items;
-  }
+  const request = (scope === "All" ? fetchOverviewNews(apiKey) : fetchCategoryNews(scope, apiKey))
+    .then((items) => {
+      if (items.length > 0) {
+        cache.set(scope, { at: Date.now(), items });
+        return items;
+      }
+      return cached?.items ?? cache.get("All")?.items ?? [];
+    })
+    .finally(() => {
+      inflight.delete(scope);
+    });
 
-  return cached?.items ?? cache.get("All")?.items ?? [];
+  inflight.set(scope, request);
+  return request;
 }
 
 export const getNewsFn = createServerFn({ method: "GET" })
