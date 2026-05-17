@@ -7,7 +7,6 @@ export const newsQueryOptions = (category: NewsScope = "All") =>
     queryFn: () => getNewsFn({ data: { category } }),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
-    placeholderData: (previousData) => previousData,
   });
 
 export const insightQueryOptions = (input: {

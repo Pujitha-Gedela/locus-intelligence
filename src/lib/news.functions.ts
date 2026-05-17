@@ -324,13 +324,6 @@ async function fetchCategoryNews(category: Category, apiKey: string): Promise<Ne
     if (categoryFallback.length >= MIN_RESULTS) {
       return categoryFallback.slice(0, MAX_RESULTS);
     }
-    if (overviewFallback.length >= MIN_RESULTS) {
-      return overviewFallback.slice(0, MAX_RESULTS).map((item, index) => ({
-        ...item,
-        category,
-        trending: index < 2,
-      }));
-    }
   }
 
   return items;

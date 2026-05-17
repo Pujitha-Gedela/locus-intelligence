@@ -44,7 +44,10 @@ function FeedPage() {
   const overviewNews = overviewData?.items ?? [];
   const fallbackItems = active === "All"
     ? []
-    : overviewNews.filter((item) => item.category === active || chips.includes(item.category)).slice(0, 6);
+    : (() => {
+        const categoryMatches = overviewNews.filter((item) => item.category === active).slice(0, 6);
+        return categoryMatches.length > 0 ? categoryMatches : overviewNews.slice(0, 6);
+      })();
   const items = news.length > 0 ? news : fallbackItems;
   const trending = useMemo(() => overviewNews.filter((item) => item.trending).slice(0, 6), [overviewNews]);
 
