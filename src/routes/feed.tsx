@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/AppShell";
 import { NewsCard } from "@/components/NewsCard";
 import { ALL_CATEGORIES, MARKET_SNAPSHOT, type Category } from "@/lib/news-data";
@@ -22,13 +22,34 @@ export const Route = createFileRoute("/feed")({
 function FeedPage() {
   const { interests } = useInterests();
   const [active, setActive] = useState<Category | "All">("All");
-  const { data, isLoading, isError, refetch } = useQuery(newsQueryOptions());
-
-  const news = data?.items ?? [];
-  const trending = useMemo(() => news.filter((n) => n.trending).slice(0, 6), [news]);
+  const queryClient = useQueryClient();
 
   const chips = interests.length > 0 ? interests : (["Markets", "AI", "Startups", "Economy"] as Category[]);
-  const items = active === "All" ? news : news.filter((n) => n.category === active);
+  const orderedCategories = useMemo(
+    () => ["All", ...chips, ...ALL_CATEGORIES.filter((category) => !chips.includes(category))] as const,
+    [chips],
+  );
+
+  const { data, isLoading, isFetching, isError, refetch } = useQuery(newsQueryOptions(active));
+  const { data: overviewData } = useQuery(newsQueryOptions("All"));
+
+  useEffect(() => {
+    const firstInterest = orderedCategories.find((category): category is Category => category !== "All");
+    if (firstInterest) {
+      queryClient.prefetchQuery(newsQueryOptions(firstInterest));
+    }
+  }, [orderedCategories, queryClient]);
+
+  const news = data?.items ?? [];
+  const overviewNews = overviewData?.items ?? [];
+  const fallbackItems = active === "All"
+    ? []
+    : (() => {
+        const categoryMatches = overviewNews.filter((item) => item.category === active).slice(0, 6);
+        return categoryMatches.length > 0 ? categoryMatches : overviewNews.slice(0, 6);
+      })();
+  const items = news.length > 0 ? news : fallbackItems;
+  const trending = useMemo(() => overviewNews.filter((item) => item.trending).slice(0, 6), [overviewNews]);
 
   const greeting = (() => {
     const h = new Date().getHours();
@@ -39,7 +60,6 @@ function FeedPage() {
 
   return (
     <AppShell subtitle="Locus Intelligence" title={`${greeting}.`}>
-      {/* Market snapshot */}
       <section aria-label="Today's market snapshot" className="border-b border-border px-5 pb-4 pt-4">
         <div className="mb-2 flex items-center justify-between">
           <span className="font-mono text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
@@ -58,9 +78,7 @@ function FeedPage() {
                   {m.label}
                 </span>
                 <span
-                  className={`font-mono text-sm font-bold tabular-nums ${
-                    up ? "text-primary" : "text-destructive"
-                  }`}
+                  className={`font-mono text-sm font-bold tabular-nums ${up ? "text-primary" : "text-destructive"}`}
                 >
                   {up ? "+" : ""}
                   {m.changePct.toFixed(1)}%
@@ -71,7 +89,6 @@ function FeedPage() {
         </div>
       </section>
 
-      {/* Interests */}
       <div className="px-5 pb-2 pt-5">
         <div className="mb-3 flex items-end justify-between">
           <h2 className="flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
@@ -85,26 +102,23 @@ function FeedPage() {
           </Link>
         </div>
         <div className="no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
-          {(["All", ...chips, ...ALL_CATEGORIES.filter((c) => !chips.includes(c))] as const).map((c) => {
-            const on = active === c;
+          {orderedCategories.map((category) => {
+            const on = active === category;
             return (
               <button
-                key={c}
-                onClick={() => setActive(c as Category | "All")}
+                key={category}
+                onClick={() => setActive(category as Category | "All")}
                 className={`flex-none rounded-full px-4 py-2 text-xs font-medium transition-colors ${
-                  on
-                    ? "bg-foreground text-background"
-                    : "border border-border text-foreground hover:bg-secondary"
+                  on ? "bg-foreground text-background" : "border border-border text-foreground hover:bg-secondary"
                 }`}
               >
-                {c}
+                {category}
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Trending strip */}
       {trending.length > 0 && (
         <section className="mt-6 border-y border-border bg-[var(--surface)] py-4">
           <div className="mb-3 flex items-center gap-2 px-5">
@@ -131,11 +145,11 @@ function FeedPage() {
         </section>
       )}
 
-      {/* Feed */}
       <main className="mt-8 space-y-10 px-5">
         <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
           <Sparkles size={10} className="text-primary" />
-          <span>Recommended for you</span>
+          <span>{active === "All" ? "Recommended for you" : `${active} for you`}</span>
+          {isFetching && !isLoading ? <span className="text-primary">Updating…</span> : null}
           <span className="ml-auto">{items.length} stories</span>
         </div>
 
@@ -156,7 +170,10 @@ function FeedPage() {
         {isError && (
           <div className="py-12 text-center">
             <p className="text-sm text-muted-foreground">Couldn't load today's stories.</p>
-            <button onClick={() => refetch()} className="mt-4 border border-border px-5 py-3 text-xs font-bold uppercase tracking-widest hover:bg-secondary">
+            <button
+              onClick={() => refetch()}
+              className="mt-4 border border-border px-5 py-3 text-xs font-bold uppercase tracking-widest hover:bg-secondary"
+            >
               Retry
             </button>
           </div>
@@ -168,7 +185,7 @@ function FeedPage() {
 
         {!isLoading && !isError && items.length === 0 && (
           <p className="py-12 text-center text-sm text-muted-foreground">
-            No stories in this category yet.
+            We’re fetching more {active === "All" ? "stories" : active.toLowerCase()} coverage. Try again in a moment.
           </p>
         )}
       </main>
