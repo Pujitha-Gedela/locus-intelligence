@@ -11,66 +11,114 @@ type GnewsArticle = {
   source: { name: string; url: string };
 };
 
+type QueryConfig = {
+  primary: string;
+  fallback: string;
+  keywords: string[];
+};
+
 type CacheEntry = { at: number; items: NewsItem[] };
+export type NewsScope = Category | "All";
+
 const CACHE_TTL_MS = 10 * 60 * 1000;
-let cache: CacheEntry | null = null;
+const MIN_RESULTS = 5;
+const MAX_RESULTS = 10;
+const cache = new Map<NewsScope, CacheEntry>();
 
-// Per-category intelligent search queries. Primary is the rich OR query;
-// fallback is a broader query used only when the primary returns too few items.
-const CATEGORY_QUERIES: Array<{ category: Category; primary: string; fallback: string }> = [
-  {
-    category: "AI",
-    primary: '"artificial intelligence" OR OpenAI OR Anthropic OR Nvidia OR "generative AI" OR LLM',
-    fallback: "AI model OR chatbot OR machine learning",
+const CATEGORY_CONFIG: Record<Category, QueryConfig> = {
+  Markets: {
+    primary: '"stock market" OR Sensex OR Nasdaq OR investing OR "Wall Street" OR equities OR "S&P 500"',
+    fallback: 'markets OR shares OR stocks OR trading OR indexes',
+    keywords: ["stock market", "sensex", "nasdaq", "wall street", "investing", "equities", "s&p 500", "dow", "nifty", "stocks"],
   },
-  {
-    category: "Startups",
-    primary: 'startup OR "venture capital" OR "Series A" OR "Series B" OR "Y Combinator" OR founder OR funding',
-    fallback: "startup raises OR seed round",
+  Technology: {
+    primary: 'technology OR software OR chips OR cloud OR Apple OR Google OR Microsoft OR semiconductors',
+    fallback: 'tech industry OR enterprise software OR devices OR cloud computing',
+    keywords: ["technology", "software", "chips", "cloud", "apple", "google", "microsoft", "semiconductor", "ai chip", "device"],
   },
-  {
-    category: "Markets",
-    primary: '"stock market" OR Nasdaq OR Sensex OR "S&P 500" OR Dow OR Nifty OR investing OR equities',
-    fallback: "stocks OR shares OR market rally",
+  Economy: {
+    primary: 'economy OR inflation OR GDP OR RBI OR "Federal Reserve" OR "interest rates" OR recession',
+    fallback: 'economic growth OR central bank OR macro OR jobs report',
+    keywords: ["economy", "inflation", "gdp", "rbi", "federal reserve", "interest rates", "recession", "central bank", "macroeconomic", "jobs"],
   },
-  {
-    category: "Technology",
-    primary: 'technology OR chips OR semiconductors OR software OR cloud OR Apple OR Google OR Microsoft',
-    fallback: "tech company OR product launch",
+  Business: {
+    primary: 'business OR corporate OR earnings OR companies OR ceo OR merger OR acquisition',
+    fallback: 'company results OR corporate strategy OR enterprise business',
+    keywords: ["business", "corporate", "earnings", "companies", "ceo", "merger", "acquisition", "profit", "revenue", "enterprise"],
   },
-  {
-    category: "Business",
-    primary: 'business OR economy OR corporate OR earnings OR CEO OR merger',
-    fallback: "company OR revenue OR profit",
+  AI: {
+    primary: 'AI OR OpenAI OR Nvidia OR "generative AI" OR Anthropic OR LLM OR "artificial intelligence"',
+    fallback: 'machine learning OR chatbot OR ai model OR inference',
+    keywords: ["ai", "openai", "nvidia", "generative ai", "anthropic", "llm", "artificial intelligence", "machine learning", "chatbot", "inference"],
   },
-  {
-    category: "Economy",
-    primary: 'economy OR inflation OR "Federal Reserve" OR GDP OR "interest rates" OR recession',
-    fallback: "economic growth OR central bank",
+  Startups: {
+    primary: 'startup OR "venture capital" OR funding OR founder OR "Series A" OR "Series B" OR incubator',
+    fallback: 'startup raises OR seed round OR investor-backed company',
+    keywords: ["startup", "venture capital", "funding", "founder", "series a", "series b", "seed round", "unicorn", "accelerator", "incubator"],
   },
-];
+  Policy: {
+    primary: 'regulation OR policy OR lawmakers OR antitrust OR tariff OR compliance OR ministry',
+    fallback: 'government policy OR regulators OR legislation OR policy reform',
+    keywords: ["regulation", "policy", "lawmakers", "antitrust", "tariff", "compliance", "regulator", "legislation", "ministry", "government"],
+  },
+  Leadership: {
+    primary: 'leadership OR CEO strategy OR management OR workplace OR executive OR boardroom',
+    fallback: 'chief executive OR company culture OR leadership strategy',
+    keywords: ["leadership", "ceo", "management", "workplace", "executive", "board", "culture", "productivity", "talent", "strategy"],
+  },
+  Global: {
+    primary: 'global economy OR geopolitics OR trade OR supply chain OR international business OR exports',
+    fallback: 'global markets OR foreign policy business OR world economy',
+    keywords: ["global", "geopolitics", "trade", "supply chain", "international", "exports", "imports", "world economy", "cross-border", "foreign"],
+  },
+};
 
-// Trusted business/tech sources — used to rank, not to hard-filter.
+const OVERVIEW_QUERY: QueryConfig = {
+  primary: 'business OR technology OR markets OR economy OR AI OR startup OR earnings',
+  fallback: 'reuters OR bloomberg OR cnbc OR techcrunch OR "financial times" business',
+  keywords: ["business", "technology", "markets", "economy", "ai", "startup", "earnings"],
+};
+
+const GENERAL_FALLBACK_QUERY = 'business news OR market news OR technology news OR economy news';
+
 const TRUSTED_SOURCES = new Set(
   [
-    "bloomberg", "reuters", "techcrunch", "financial times", "ft",
-    "economic times", "cnbc", "wall street journal", "wsj",
-    "the information", "the verge", "wired", "ars technica",
-    "business insider", "forbes", "fortune", "barron's", "marketwatch",
-    "axios", "the economist", "nikkei", "bbc", "associated press", "ap news",
-    "mint", "moneycontrol", "livemint",
+    "bloomberg",
+    "reuters",
+    "techcrunch",
+    "financial times",
+    "ft",
+    "economic times",
+    "cnbc",
+    "wall street journal",
+    "wsj",
+    "the information",
+    "the verge",
+    "wired",
+    "ars technica",
+    "business insider",
+    "forbes",
+    "fortune",
+    "barron's",
+    "marketwatch",
+    "axios",
+    "the economist",
+    "nikkei",
+    "bbc",
+    "associated press",
+    "ap news",
+    "mint",
+    "moneycontrol",
+    "livemint",
   ].map((s) => s.toLowerCase()),
 );
 
-// Drop obvious entertainment / clickbait sources.
-const SOURCE_BLOCKLIST = [
-  "tmz", "daily mail", "buzzfeed", "people.com", "eonline", "perez",
-];
+const SOURCE_BLOCKLIST = ["tmz", "daily mail", "buzzfeed", "people.com", "eonline", "perez"];
 
 function isBlockedSource(name: string | undefined): boolean {
   if (!name) return false;
-  const n = name.toLowerCase();
-  return SOURCE_BLOCKLIST.some((b) => n.includes(b));
+  const normalized = name.toLowerCase();
+  return SOURCE_BLOCKLIST.some((entry) => normalized.includes(entry));
 }
 
 function sourceRank(name: string | undefined): number {
@@ -78,9 +126,40 @@ function sourceRank(name: string | undefined): number {
   return TRUSTED_SOURCES.has(name.toLowerCase()) ? 0 : 1;
 }
 
+function normalizeText(value: string | null | undefined): string {
+  return (value ?? "").toLowerCase();
+}
+
+function keywordScore(article: GnewsArticle, keywords: string[]): number {
+  const title = normalizeText(article.title);
+  const body = normalizeText(`${article.description ?? ""} ${article.content ?? ""}`);
+
+  return keywords.reduce((score, keyword) => {
+    const inTitle = title.includes(keyword);
+    const inBody = body.includes(keyword);
+    if (inTitle) return score + 4;
+    if (inBody) return score + 2;
+    return score;
+  }, 0);
+}
+
+function classifyCategory(article: GnewsArticle): Category {
+  let bestCategory: Category = "Business";
+  let bestScore = 0;
+
+  ALL_CATEGORIES.forEach((category) => {
+    const score = keywordScore(article, CATEGORY_CONFIG[category].keywords);
+    if (score > bestScore) {
+      bestScore = score;
+      bestCategory = category;
+    }
+  });
+
+  return bestCategory;
+}
+
 function urlToId(url: string): string {
-  // URL-safe base64
-  const b64 = (typeof btoa === "function" ? btoa(url) : Buffer.from(url).toString("base64"));
+  const b64 = typeof btoa === "function" ? btoa(url) : Buffer.from(url).toString("base64");
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
@@ -108,9 +187,12 @@ function estimateReadTime(text: string): number {
   return Math.max(2, Math.min(9, Math.round(words / 180) || 3));
 }
 
-function bodyFromArticle(a: GnewsArticle): string[] {
-  const raw = (a.content ?? a.description ?? "").replace(/\s*\[\+\d+ chars\]\s*$/, "").trim();
+function bodyFromArticle(article: GnewsArticle): string[] {
+  const raw = (article.content ?? article.description ?? "")
+    .replace(/\s*\[\+\d+ chars\]\s*$/, "")
+    .trim();
   if (!raw) return [];
+
   return raw.split(/(?<=[.!?])\s+(?=[A-Z0-9"'])/).reduce<string[]>((acc, sentence) => {
     const last = acc[acc.length - 1];
     if (!last || last.length > 240) acc.push(sentence);
@@ -119,101 +201,203 @@ function bodyFromArticle(a: GnewsArticle): string[] {
   }, []);
 }
 
-function mapArticle(a: GnewsArticle, category: Category, trending: boolean): NewsItem | null {
-  if (!a?.url || !a?.title) return null;
-  const summary = (a.description ?? a.content ?? "").replace(/\s*\[\+\d+ chars\]\s*$/, "").trim();
+function mapArticle(article: GnewsArticle, category: Category, trending: boolean): NewsItem | null {
+  if (!article?.url || !article?.title) return null;
+  const summary = (article.description ?? article.content ?? "")
+    .replace(/\s*\[\+\d+ chars\]\s*$/, "")
+    .trim();
   if (!summary) return null;
+
   return {
-    id: urlToId(a.url),
-    headline: a.title,
+    id: urlToId(article.url),
+    headline: article.title,
     summary,
-    source: a.source?.name ?? "Source",
+    source: article.source?.name ?? "Source",
     category,
     readTime: estimateReadTime(summary + " ".repeat(400)),
-    thumbnail: a.image ?? undefined,
-    publishedAt: timeAgo(a.publishedAt),
-    url: a.url,
-    body: bodyFromArticle(a),
+    thumbnail: article.image ?? undefined,
+    publishedAt: timeAgo(article.publishedAt),
+    url: article.url,
+    body: bodyFromArticle(article),
     trending,
   };
 }
 
 async function fetchGnews(params: Record<string, string>, apiKey: string): Promise<GnewsArticle[]> {
-  const u = new URL("https://gnews.io/api/v4/" + (params.q ? "search" : "top-headlines"));
-  Object.entries({ lang: "en", max: "10", ...params, apikey: apiKey }).forEach(([k, v]) => u.searchParams.set(k, v));
-  const res = await fetch(u.toString());
+  const url = new URL("https://gnews.io/api/v4/" + (params.q ? "search" : "top-headlines"));
+  Object.entries({ lang: "en", max: String(MAX_RESULTS), ...params, apikey: apiKey }).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+
+  const res = await fetch(url.toString());
   if (!res.ok) {
     console.error(`GNews ${res.status}: ${await res.text().catch(() => "")}`);
     return [];
   }
+
   const json = (await res.json()) as { articles?: GnewsArticle[] };
   return json.articles ?? [];
 }
 
-async function loadAllNews(): Promise<NewsItem[]> {
+function buildRankedItems(
+  articles: GnewsArticle[],
+  category: Category,
+  keywords: string[],
+  minimumScore: number,
+  trendCount: number,
+): NewsItem[] {
+  const seen = new Set<string>();
+
+  return articles
+    .filter((article) => !isBlockedSource(article.source?.name))
+    .map((article) => ({ article, score: keywordScore(article, keywords) }))
+    .filter(({ article, score }) => {
+      if (!article.title || !article.url) return false;
+      return score >= minimumScore || sourceRank(article.source?.name) === 0;
+    })
+    .sort((a, b) => {
+      const rankDiff = sourceRank(a.article.source?.name) - sourceRank(b.article.source?.name);
+      if (rankDiff !== 0) return rankDiff;
+      if (b.score !== a.score) return b.score - a.score;
+      return new Date(b.article.publishedAt).getTime() - new Date(a.article.publishedAt).getTime();
+    })
+    .map(({ article }, index) => mapArticle(article, category, index < trendCount))
+    .filter((item): item is NewsItem => Boolean(item))
+    .filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    })
+    .slice(0, MAX_RESULTS);
+}
+
+function buildOverviewItems(articles: GnewsArticle[]): NewsItem[] {
+  const seen = new Set<string>();
+
+  return articles
+    .filter((article) => !isBlockedSource(article.source?.name))
+    .sort((a, b) => {
+      const rankDiff = sourceRank(a.source?.name) - sourceRank(b.source?.name);
+      if (rankDiff !== 0) return rankDiff;
+      return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+    })
+    .map((article, index) => mapArticle(article, classifyCategory(article), index < 4))
+    .filter((item): item is NewsItem => Boolean(item))
+    .filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    })
+    .slice(0, 18);
+}
+
+async function fetchCategoryNews(category: Category, apiKey: string): Promise<NewsItem[]> {
+  const config = CATEGORY_CONFIG[category];
+  const collected: GnewsArticle[] = [];
+
+  console.info(`[news] category=${category} stage=primary query=${config.primary}`);
+  collected.push(
+    ...await fetchGnews(
+      { q: config.primary, in: "title,description", sortby: "publishedAt", max: String(MAX_RESULTS) },
+      apiKey,
+    ),
+  );
+
+  let items = buildRankedItems(collected, category, config.keywords, 2, 2);
+  if (items.length >= MIN_RESULTS) return items;
+
+  console.info(`[news] category=${category} stage=fallback query=${config.fallback}`);
+  collected.push(
+    ...await fetchGnews(
+      { q: config.fallback, in: "title,description", sortby: "publishedAt", max: String(MAX_RESULTS) },
+      apiKey,
+    ),
+  );
+
+  items = buildRankedItems(collected, category, config.keywords, 2, 2);
+  if (items.length >= MIN_RESULTS) return items;
+
+  console.info(`[news] category=${category} stage=topoff query=${GENERAL_FALLBACK_QUERY}`);
+  collected.push(
+    ...await fetchGnews(
+      { q: GENERAL_FALLBACK_QUERY, in: "title,description", sortby: "publishedAt", max: String(MAX_RESULTS) },
+      apiKey,
+    ),
+  );
+
+  items = buildRankedItems(collected, category, config.keywords, 2, 2);
+  if (items.length >= MIN_RESULTS) return items;
+
+  return buildRankedItems(collected, category, config.keywords, 0, 2);
+}
+
+async function fetchOverviewNews(apiKey: string): Promise<NewsItem[]> {
+  const collected: GnewsArticle[] = [];
+
+  console.info(`[news] category=All stage=primary query=${OVERVIEW_QUERY.primary}`);
+  collected.push(
+    ...await fetchGnews(
+      { q: OVERVIEW_QUERY.primary, in: "title,description", sortby: "publishedAt", max: "18" },
+      apiKey,
+    ),
+  );
+
+  let items = buildOverviewItems(collected);
+  if (items.length >= MAX_RESULTS) return items;
+
+  console.info(`[news] category=All stage=fallback query=${OVERVIEW_QUERY.fallback}`);
+  collected.push(
+    ...await fetchGnews(
+      { q: OVERVIEW_QUERY.fallback, in: "title,description", sortby: "publishedAt", max: "18" },
+      apiKey,
+    ),
+  );
+
+  items = buildOverviewItems(collected);
+  if (items.length > 0) return items;
+
+  console.info(`[news] category=All stage=topoff query=${GENERAL_FALLBACK_QUERY}`);
+  collected.push(
+    ...await fetchGnews(
+      { q: GENERAL_FALLBACK_QUERY, in: "title,description", sortby: "publishedAt", max: "18" },
+      apiKey,
+    ),
+  );
+
+  return buildOverviewItems(collected);
+}
+
+export async function fetchNewsForScope(scope: NewsScope = "All"): Promise<NewsItem[]> {
+  const cached = cache.get(scope);
+  const now = Date.now();
+  if (cached && now - cached.at < CACHE_TTL_MS && cached.items.length > 0) {
+    return cached.items;
+  }
+
   const apiKey = process.env.GNEWS_API_KEY;
   if (!apiKey) {
     console.error("GNEWS_API_KEY is not configured");
-    return [];
+    return cached?.items ?? [];
   }
 
-  // Run primary query per category in parallel.
-  const primary = await Promise.all(
-    CATEGORY_QUERIES.map(async (c) => {
-      const arts = await fetchGnews(
-        { q: c.primary, max: "10", in: "title,description", sortby: "publishedAt" },
-        apiKey,
-      );
-      return { category: c.category, fallback: c.fallback, arts };
-    }),
-  );
+  const items = scope === "All" ? await fetchOverviewNews(apiKey) : await fetchCategoryNews(scope, apiKey);
+  if (items.length > 0) {
+    cache.set(scope, { at: now, items });
+    return items;
+  }
 
-  // Run fallback for any category that came back thin (< 4 usable items).
-  const fallback = await Promise.all(
-    primary.map(async (r) => {
-      const usable = r.arts.filter((a) => !isBlockedSource(a.source?.name));
-      if (usable.length >= 4) return { category: r.category, arts: [] as GnewsArticle[] };
-      const arts = await fetchGnews(
-        { q: r.fallback, max: "8", in: "title,description", sortby: "publishedAt" },
-        apiKey,
-      );
-      return { category: r.category, arts };
-    }),
-  );
-
-  const all: NewsItem[] = [];
-  const seen = new Set<string>();
-  const pushAll = (arts: GnewsArticle[], category: Category, trendCount: number) => {
-    // Sort: trusted sources first, then by recency.
-    const ranked = [...arts]
-      .filter((a) => !isBlockedSource(a.source?.name))
-      .sort((a, b) => {
-        const r = sourceRank(a.source?.name) - sourceRank(b.source?.name);
-        if (r !== 0) return r;
-        return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
-      });
-    ranked.forEach((a, i) => {
-      const mapped = mapArticle(a, category, i < trendCount);
-      if (!mapped || seen.has(mapped.id)) return;
-      seen.add(mapped.id);
-      all.push(mapped);
-    });
-  };
-  primary.forEach((r) => pushAll(r.arts, r.category, 2));
-  fallback.forEach((r) => pushAll(r.arts, r.category, 1));
-
-  return all;
+  return cached?.items ?? cache.get("All")?.items ?? [];
 }
 
-export const getNewsFn = createServerFn({ method: "GET" }).handler(async () => {
-  const now = Date.now();
-  if (cache && now - cache.at < CACHE_TTL_MS && cache.items.length > 0) {
-    return { items: cache.items, cachedAt: cache.at };
-  }
-  const items = await loadAllNews();
-  if (items.length > 0) cache = { at: now, items };
-  return { items: cache?.items ?? items, cachedAt: cache?.at ?? now };
-});
+export const getNewsFn = createServerFn({ method: "GET" })
+  .inputValidator((data: { category?: NewsScope } | undefined) => data ?? {})
+  .handler(async ({ data }) => {
+    const scope = data.category && (data.category === "All" || ALL_CATEGORIES.includes(data.category))
+      ? data.category
+      : "All";
+    const items = await fetchNewsForScope(scope);
+    return { items, cachedAt: Date.now(), category: scope };
+  });
 
 export const getArticleInsightFn = createServerFn({ method: "POST" })
   .inputValidator((data: { id: string; headline: string; summary: string; category: string }) => data)
@@ -262,4 +446,4 @@ Be specific. Avoid hedging. No preamble.`;
     }
   });
 
-export const ALL_CATEGORIES_RE = ALL_CATEGORIES; // re-export for convenience
+export const ALL_CATEGORIES_RE = ALL_CATEGORIES;
