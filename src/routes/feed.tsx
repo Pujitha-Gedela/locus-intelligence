@@ -34,10 +34,10 @@ function FeedPage() {
   const { data: overviewData } = useQuery(newsQueryOptions("All"));
 
   useEffect(() => {
-    const nextTabs = orderedCategories.slice(0, 4).filter((category): category is Category => category !== "All");
-    nextTabs.forEach((category) => {
-      queryClient.prefetchQuery(newsQueryOptions(category));
-    });
+    const firstInterest = orderedCategories.find((category): category is Category => category !== "All");
+    if (firstInterest) {
+      queryClient.prefetchQuery(newsQueryOptions(firstInterest));
+    }
   }, [orderedCategories, queryClient]);
 
   const news = data?.items ?? [];
