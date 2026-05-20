@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ALL_CATEGORIES, type Category } from "@/lib/news-data";
 import { useInterests } from "@/lib/app-state";
-import { ArrowRight, Check, Mail, Lock } from "lucide-react";
+import { ArrowRight, Check, Mail, Lock, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Onboarding,
@@ -22,7 +22,8 @@ function Onboarding() {
   const navigate = useNavigate();
   const { save } = useInterests();
   const [selected, setSelected] = useState<Category[]>(["Markets", "AI", "Startups"]);
-  const [step, setStep] = useState<"splash" | "auth" | "interests">("splash");
+  const [step, setStep] = useState<"splash" | "auth" | "connecting" | "interests">("splash");
+  const [connectingLabel, setConnectingLabel] = useState("Signing you in…");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,6 +51,30 @@ function Onboarding() {
     save(asGuest && selected.length === 0 ? ["Markets", "Business", "AI"] : selected);
     if (typeof window !== "undefined") localStorage.setItem("locus.authed.v1", "1");
     navigate({ to: "/feed" });
+  }
+
+  function simulateAuth(provider: "google" | "demo" | "email", next: "interests" | "feed") {
+    setConnectingLabel(
+      provider === "google"
+        ? "Connecting with Google…"
+        : provider === "demo"
+        ? "Preparing your demo…"
+        : "Signing you in…"
+    );
+    setStep("connecting");
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        "locus.session.v1",
+        JSON.stringify({ provider, ts: Date.now() })
+      );
+    }
+    setTimeout(() => {
+      if (next === "feed") {
+        continueToFeed(true);
+      } else {
+        setStep("interests");
+      }
+    }, 900);
   }
 
   if (step === "splash") {
