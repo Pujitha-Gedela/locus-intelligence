@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ALL_CATEGORIES, type Category } from "@/lib/news-data";
 import { useInterests, isOnboarded } from "@/lib/app-state";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Check, Mail, Lock } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   component: Onboarding,
@@ -22,7 +22,10 @@ function Onboarding() {
   const navigate = useNavigate();
   const { save } = useInterests();
   const [selected, setSelected] = useState<Category[]>(["Markets", "AI", "Startups"]);
-  const [step, setStep] = useState<"splash" | "interests">("splash");
+  const [step, setStep] = useState<"splash" | "auth" | "interests">("splash");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     if (isOnboarded()) navigate({ to: "/feed", replace: true });
@@ -30,7 +33,7 @@ function Onboarding() {
 
   useEffect(() => {
     if (step !== "splash") return;
-    const t = setTimeout(() => setStep("interests"), 1300);
+    const t = setTimeout(() => setStep("auth"), 1300);
     return () => clearTimeout(t);
   }, [step]);
 
