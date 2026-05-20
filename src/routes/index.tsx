@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ALL_CATEGORIES, type Category } from "@/lib/news-data";
-import { useInterests, isOnboarded } from "@/lib/app-state";
+import { useInterests } from "@/lib/app-state";
 import { ArrowRight, Check, Mail, Lock } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -28,7 +28,10 @@ function Onboarding() {
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    if (isOnboarded()) navigate({ to: "/feed", replace: true });
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem("locus.authed.v1") === "1") {
+      navigate({ to: "/feed", replace: true });
+    }
   }, [navigate]);
 
   useEffect(() => {
@@ -45,6 +48,7 @@ function Onboarding() {
 
   function continueToFeed(asGuest: boolean) {
     save(asGuest && selected.length === 0 ? ["Markets", "Business", "AI"] : selected);
+    if (typeof window !== "undefined") localStorage.setItem("locus.authed.v1", "1");
     navigate({ to: "/feed" });
   }
 
@@ -57,7 +61,7 @@ function Onboarding() {
           </span>
           <h1 className="mt-4 text-4xl font-bold tracking-tight">Intelligence.</h1>
           <p className="mt-3 max-w-xs text-sm text-muted-foreground">
-            AI-distilled business news for people who don't have time to read it all.
+            Your daily brief on markets, AI, startups, and business.
           </p>
         </div>
       </div>
@@ -75,7 +79,7 @@ function Onboarding() {
             {mode === "signin" ? "Welcome back." : "Create your account."}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Everything shaping markets and technology — in brief.
+            Your daily brief on markets, AI, startups, and business.
           </p>
         </div>
 
@@ -154,7 +158,7 @@ function Onboarding() {
             onClick={() => setStep("interests")}
             className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
           >
-            Explore Demo →
+            Skip Demo →
           </button>
         </div>
       </div>
