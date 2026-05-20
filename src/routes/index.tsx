@@ -111,7 +111,7 @@ function Onboarding() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            setStep("interests");
+            simulateAuth("email", "interests");
           }}
           className="mt-10 space-y-3"
         >
@@ -156,7 +156,7 @@ function Onboarding() {
         </div>
 
         <button
-          onClick={() => setStep("interests")}
+          onClick={() => simulateAuth("google", "feed")}
           className="flex w-full items-center justify-center gap-2 border border-border bg-background py-3.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
         >
           <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden>
@@ -180,11 +180,24 @@ function Onboarding() {
             )}
           </button>
           <button
-            onClick={() => setStep("interests")}
+            onClick={() => simulateAuth("demo", "feed")}
             className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
           >
             Skip Demo →
           </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "connecting") {
+    return (
+      <div className="mx-auto flex min-h-screen max-w-[480px] flex-col items-center justify-center bg-background px-6 text-foreground">
+        <div className="animate-reveal flex flex-col items-center text-center">
+          <Loader2 size={22} className="animate-spin text-primary" />
+          <p className="mt-5 font-mono text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+            {connectingLabel}
+          </p>
         </div>
       </div>
     );
