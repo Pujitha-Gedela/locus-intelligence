@@ -76,11 +76,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Locus Intelligence — AI business news, distilled" },
       { name: "description", content: "Concise AI summaries of business and technology news for busy professionals. Read full articles in a calm, premium reading experience." },
       { name: "author", content: "Locus Intelligence" },
-      { property: "og:title", content: "Locus Intelligence" },
-      { property: "og:description", content: "AI-distilled business news for busy professionals." },
+      { property: "og:title", content: "Locus Intelligence — AI business news, distilled" },
+      { property: "og:description", content: "Concise AI summaries of business and technology news for busy professionals. Read full articles in a calm, premium reading experience." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Locus Intelligence — AI business news, distilled" },
+      { name: "twitter:description", content: "Concise AI summaries of business and technology news for busy professionals. Read full articles in a calm, premium reading experience." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8b524dba-af08-4faf-a116-baf2108badb2/id-preview-e474f707--7e60a554-07d8-483f-8da8-a744afd36022.lovable.app-1778980788179.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/8b524dba-af08-4faf-a116-baf2108badb2/id-preview-e474f707--7e60a554-07d8-483f-8da8-a744afd36022.lovable.app-1778980788179.png" },
     ],
     links: [
       {
