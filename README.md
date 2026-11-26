@@ -1,6 +1,6 @@
 # Locus Intelligence — AI-Powered Executive Business Briefing
 
-**Live Prototype:** [View App on Lovable](https://locus-intelligence.lovable.app)| **Product Walkthrough:** [Watch 35s Demo](link-to-your-demo-video-if-hosted)
+**Live Prototype:** [View App on Lovable](https://locus-intelligence.lovable.app)| **Product Walkthrough:** [Watch 35s Demo](locus-intelligence-demo.mp4)
 
 A mobile-first, AI-powered business intelligence news application designed to turn daily market and technology noise into a calm, personalized 5-minute morning briefing for founders, investors, consultants, and product leaders.
 
